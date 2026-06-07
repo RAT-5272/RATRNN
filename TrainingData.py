@@ -208,18 +208,25 @@ def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedDat
 	FineTuningMessages = []
 
 
-	ProgressBar = tqdm(total = len(Messages), desc="  ", unit = " files", colour = "#b5a3c2")
+	TotalMessageCount = 0
 	for File in Messages:
+		TotalMessageCount += len(File["Messages"])
+	ProgressBar = tqdm(total = TotalMessageCount, desc="  ", unit = " messages", colour = "#b5a3c2")
+	
+	for File in Messages:
+		Filepath = File["FilePath"]
 		FileMessageCount = len(File["Messages"])
-		for Index in range(FileMessageCount - TrainingConfig.MESSAGE_HISTORY_LENGTH - 1):
+		for Index in range(max(FileMessageCount - TrainingConfig.MESSAGE_HISTORY_LENGTH - 1, 1)):
+			ProgressBar.update(1)
 
-			ConversationHistory = File["Messages"][Index:Index + TrainingConfig.MESSAGE_HISTORY_LENGTH].copy()
+			ConversationHistory = File["Messages"][Index:Index + TrainingConfig.MESSAGE_HISTORY_LENGTH + 1].copy()
+			MessageToPredict = ConversationHistory[-1].copy()
+			ConversationHistory = ConversationHistory[:-1]
 
-			MessageToPredict = File["Messages"][Index + TrainingConfig.MESSAGE_HISTORY_LENGTH]
 			PredictSenderUsername = MessageToPredict["Username"]
 
-			# Don't train on system prompts
-			if PredictSenderUsername == "RATRNN_system":
+			# Don't train on system prompts / tool responses
+			if PredictSenderUsername == "RATRNN_system" or PredictSenderUsername == "RATRNN_tool":
 				continue
 
 			# Convert from data heavy format to LLM friendly
@@ -252,21 +259,23 @@ def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedDat
 			
 			
 			# Add a message history of each length to ProcessedMessageHistories
-			ProcessedMessageHistories = []
-			for i in range(len(ProcessedMessageHistory)):
-				if random.random() < GetHistoryProbability(i, TrainingConfig.MESSAGE_HISTORY_LENGTH, TrainingConfig.MAX_LENGTH_BIAS):
-					ProcessedMessageHistories.append(ProcessedMessageHistory[-(i+1):].copy())
+			#ProcessedMessageHistories = []
+			#for i in range(len(ProcessedMessageHistory)):
+			#	if random.random() < GetHistoryProbability(i, len(ProcessedMessageHistories), TrainingConfig.MAX_LENGTH_BIAS):
+			#		ProcessedMessageHistories.append(ProcessedMessageHistory[-(i+1):].copy())
 			
-			# Classify then add the message history to the correct types
-
-
+			# Classify then add the message histories to the correct type
+			if "FineTuning" in Filepath:
+				FineTuningMessages.append("")
+			elif PredictSenderUsername == "rat_5272":
+				MyMessages.append("")
+			elif PredictSenderUsername != "rat_5272":
+				AllUserMessages.append("")
 				
-				
-				
 
-
-
-		ProgressBar.update(1)
+	print(len(FineTuningMessages))
+	print(len(AllUserMessages))
+	print(len(MyMessages))
 	
 	ProgressBar.close()
 

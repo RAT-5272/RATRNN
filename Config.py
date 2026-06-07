@@ -15,11 +15,12 @@ class Config:
 	# Base model
 	BASE_MODEL: str = "unsloth/Qwen2.5-7B-Instruct"
 
-	# Sav paths
+	# Save paths
 	MODEL_SAVE_PATH: str = os.path.expanduser("~/RATRNN/ModelSave") # ~/RATRNN/ModelSave, to enable fast loading
 	CHECKPOINT_SAVE_PATH: str = "/mnt/f/Coding/AI/RATRNN_Checkpoints" # /mnt/f/Coding/AI/RATRNN_Checkpoints, so it doesn't flood my L (Linux) partition, it's only 100 GB
 	TRAINING_DATA_PATH: str = os.path.expanduser("~/RATRNN/TrainingData") # ~/RATRNN/TrainingData
 	DATASET_CACHE_PATH: str = os.path.expanduser("~/RATRNN/TrainingData/Cache") # ~/RATRNN/TrainingData
+	FINE_TUNING_FOLDER_NAME: str = "FineTuning" # Bit of a hacky fix but okay.
 
 	LOAD_IN_4BIT: bool = True # QLoRA bit mode (4 / 8)
 	LOAD_IN_8BIT: bool = False
@@ -99,6 +100,8 @@ class StageConfig:
 		"FineTuning": 0
 	})
 
+	FULL_FINE_TUNING_DATASET: bool = True # If true, will not delete any entries from the fine tuning dataset
+
 	TRAINING_MODE: str = "FullConversation" # "FullConversation" | "AssistantOnly" | "MostRecent"
 	# FullConversation: Trains EVERY message token, except for messages sent by the "system" and "tool" roles,   role learning issues but fastest information gathering
 	# AssistantOnly: Trains ONLY on assistant messages,   potential overfit risk
@@ -145,15 +148,17 @@ Stage1 = StageConfig(
 	DATASET_SCALE = 1,
 
 	ABSOLUTE_DATASET_CONTENTS = {
-		"AllUserMessages": 0,
-		"MyMessages": 0,
+		"AllUserMessages": 1,
+		"MyMessages": 1,
 		"FineTuning": 1
 	},
 	RELATIVE_DATASET_CONTENTS = {
-		"AllUserMessages": 0.8,
-		"MyMessages": 0.2,
+		"AllUserMessages": 0,
+		"MyMessages": 0,
 		"FineTuning": 0
 	},
+
+	FULL_FINE_TUNING_DATASET = True,
 
 	TRAINING_MODE = "FullConversation",
 	BASE_TOKEN_WEIGHTS = {"system": 0, "tool": 0, # By role
@@ -176,9 +181,11 @@ Stage2 = StageConfig(
 	},
 	RELATIVE_DATASET_CONTENTS = {
 		"AllUserMessages": 0.1,
-		"MyMessages": 1,
+		"MyMessages": 0.9,
 		"FineTuning": 0
 	},
+
+	FULL_FINE_TUNING_DATASET = True,
 
 	TRAINING_MODE = "FullConversation",
 	BASE_TOKEN_WEIGHTS = {"system": 0, "tool": 0, # By role
