@@ -1,0 +1,10 @@
+TrainingData/TrainingDataParser.py
+TrainingData/DiscordChats
+TrainingData/FineTuning
+TrainingData/Cache
+
+Venv
+
+RAT RNN OLD
+
+__pycache__
