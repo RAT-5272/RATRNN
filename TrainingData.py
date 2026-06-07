@@ -259,10 +259,10 @@ def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedDat
 			
 			
 			# Add a message history of each length to ProcessedMessageHistories
-			#ProcessedMessageHistories = []
-			#for i in range(len(ProcessedMessageHistory)):
-			#	if random.random() < GetHistoryProbability(i, len(ProcessedMessageHistories), TrainingConfig.MAX_LENGTH_BIAS):
-			#		ProcessedMessageHistories.append(ProcessedMessageHistory[-(i+1):].copy())
+			ProcessedMessageHistories = []
+			for i in range(len(ProcessedMessageHistory)):
+				if random.random() < GetHistoryProbability(i, len(ProcessedMessageHistories), TrainingConfig.MAX_LENGTH_BIAS):
+					ProcessedMessageHistories.append(ProcessedMessageHistory[-(i+1):].copy())
 			
 			# Classify then add the message histories to the correct type
 			if "FineTuning" in Filepath:
@@ -276,6 +276,13 @@ def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedDat
 	print(len(FineTuningMessages))
 	print(len(AllUserMessages))
 	print(len(MyMessages))
+
+	TrainingData = []
+
+	# Absolute size
+	for MessageHistory in FineTuningMessages:
+		if random.random() < TrainingConfig.DATASET_SCALE and random.random < TrainingConfig.ABSOLUTE_DATASET_CONTENTS["FineTuning"]:
+			TrainingData.append(MessageHistory)
 	
 	ProgressBar.close()
 
