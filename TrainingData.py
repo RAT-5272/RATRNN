@@ -1,6 +1,10 @@
+from Config import Config
+from Config import StageConfig
+from Config import Stage1
+
 import os
 import re
-from Config import Config
+import random
 
 # Data Storage
 import json
@@ -13,15 +17,16 @@ from tqdm import tqdm
 
 
 
-print(Style.BRIGHT + Fore.MAGENTA + "This text is red")
-print(Back.GREEN + "This has a green background")
-print(Style.BRIGHT + "This is bright text")
+#print(Style.BRIGHT + Fore.MAGENTA + "This text is red")
+#print(Back.GREEN + "This has a green background")
+#print(Style.BRIGHT + "This is bright text")
 
 
 
 def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"), LoadCachedData: bool = True):
 	"""
-	|||DOES NOT CONSTRUCT A TRAINABLE DATASET|||
+	||| DOES NOT CONSTRUCT A TRAINABLE DATASET |||
+	
 	This function will return a dictionary of files and their contents
 	"""
 	if Folders == []:
@@ -36,7 +41,7 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 		try:
 			with open(f"{Config.DATASET_CACHE_PATH}/Dataset.json", "r") as File:
 				MessageHistories = json.load(File)
-				print("  Loaded dataset!")
+				print(Style.BRIGHT + Fore.MAGENTA + "  Loaded dataset!")
 				return MessageHistories
 		except Exception as e:
 			print(f"  Failed to load dataset, instead building from new, {e}")
@@ -163,11 +168,107 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 		print(f"    Failed to save database, {e}")
 
 		
-	print(f"  Extracted {TotalMessageCount} messages from {FileCount} files")
+	print(Style.BRIGHT + Fore.MAGENTA + f"Extracted {TotalMessageCount} messages from {FileCount} files")
 	return MessageHistories
 
 
 
-ReadFiles(Folders = ["DiscordChats"])
+
+
+def GetHistoryProbability(i, MessageHistoryLength, MAX_LENGTH_BIAS):
+    if MessageHistoryLength <= 1:
+        return 1.0
+
+    # Uniform case
+    if MAX_LENGTH_BIAS <= 0:
+        return 1.0 / MessageHistoryLength
+
+    # Fully biased case
+    if MAX_LENGTH_BIAS >= 1:
+        return 1.0 if i == MessageHistoryLength - 1 else 0.0
+
+    # Convert bias into an exponent
+    Exponent = MAX_LENGTH_BIAS / (1 - MAX_LENGTH_BIAS)
+
+    # Weight for this history length
+    Weight = ((i + 1) / MessageHistoryLength) ** Exponent
+
+    # Normalize
+    TotalWeight = sum(
+        ((j + 1) / MessageHistoryLength) ** Exponent
+        for j in range(MessageHistoryLength)
+    )
+
+    return Weight / TotalWeight
+
+def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedData: bool = True):
+	
+	AllUserMessages = []
+	MyMessages = []
+	FineTuningMessages = []
+
+
+	ProgressBar = tqdm(total = len(Messages), desc="  ", unit = " files", colour = "#b5a3c2")
+	for File in Messages:
+		FileMessageCount = len(File["Messages"])
+		for Index in range(FileMessageCount - TrainingConfig.MESSAGE_HISTORY_LENGTH - 1):
+
+			ConversationHistory = File["Messages"][Index:Index + TrainingConfig.MESSAGE_HISTORY_LENGTH].copy()
+
+			MessageToPredict = File["Messages"][Index + TrainingConfig.MESSAGE_HISTORY_LENGTH]
+			PredictSenderUsername = MessageToPredict["Username"]
+
+			# Don't train on system prompts
+			if PredictSenderUsername == "RATRNN_system":
+				continue
+
+			# Convert from data heavy format to LLM friendly
+			ProcessedMessageHistory = []
+			for Message in ConversationHistory:
+				if Message["Username"] == "RATRNN_tool":
+					ProcessedMessageHistory.append({
+						"role": "tool",
+						"content": Message["Message"]
+					})
+				elif Message["Username"] == "RATRNN_system":
+					ProcessedMessageHistory.append({
+						"role": "system",
+						"content": Message["Message"]
+					})
+				else:
+					if Message["Username"] == PredictSenderUsername:
+						ProcessedMessageHistory.append({
+							"role": "assistant",
+							"content": Message["Message"]
+						})
+					else:
+						ProcessedMessageHistory.append({
+							"role": "user",
+							"content": f"{Message['DisplayName']}\n{Message['Message']}"
+						})
+			
+
+
+			
+			
+			# Add a message history of each length to ProcessedMessageHistories
+			ProcessedMessageHistories = []
+			for i in range(len(ProcessedMessageHistory)):
+				if random.random() < GetHistoryProbability(i, TrainingConfig.MESSAGE_HISTORY_LENGTH, TrainingConfig.MAX_LENGTH_BIAS):
+					ProcessedMessageHistories.append(ProcessedMessageHistory[-(i+1):].copy())
+			
+			# Classify then add the message history to the correct types
+
+
+				
+				
+				
+
+
+
+		ProgressBar.update(1)
+	
+	ProgressBar.close()
+
 # MUST MUST MUS MUST ALSO ADD IT TO DO THIS:
 # DELETE PREVIOUS TOOL INSTANCES BEFORE FINAL MESSAGE YK YK
