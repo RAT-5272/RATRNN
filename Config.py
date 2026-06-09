@@ -82,10 +82,11 @@ class StageConfig:
 	# - MAX_LENGTH_BIAS = 0.5, the chance is different for each value, is a blend between 1 and 0, using a math formula
 	# - MAX_LENGTH_BIAS = 0, so all message histories have an equal chance to be used (1/MESSAGE_HISTORY_LENGTH to preserve scale)
 
-	DATASET_SCALE: float = 1 # Works best when 0-1, simply multiplies the chance of something to make it in the dataset by this value.
-	# Meant to work as a shrinking factor, but can poorly work as a scaling facor if you set fractional dataset contents below.
+	TARGET_SAMPLES_PER_MESSAGE: int = 5 # The amount of training data samples to create for each message, a simple multiplier. Works alongside MAX_LENGTH_BIAS
 
-	# Absolute is there whe contents are just percentages of each dataset
+	DATASET_SCALE: float = 1 # Works best when 0-1, simply multiplies the chance of something to make it in the dataset by this value.
+
+	# Absolute is there whe contents are just percentages of each dataset (if over 1, will duplicate parts)
 	# Relative is where the contents are based off of the smallest size (sum to 100%)
 	# Both get added together afterwards WARNING: potential duplicated data
 	ABSOLUTE_DATASET_CONTENTS: dict = field(default_factory=lambda: {
@@ -144,6 +145,7 @@ Stage1 = StageConfig(
 
 	MESSAGE_HISTORY_LENGTH = 10,
 	MAX_LENGTH_BIAS = 0.2,
+	TARGET_SAMPLES_PER_MESSAGE = 5,
 
 	DATASET_SCALE = 1,
 
@@ -171,6 +173,7 @@ Stage1 = StageConfig(
 Stage2 = StageConfig(
 	MESSAGE_HISTORY_LENGTH = 15,
 	MAX_LENGTH_BIAS = 0.7,
+	TARGET_SAMPLES_PER_MESSAGE = 8,
 
 	DATASET_SCALE = 1,
 

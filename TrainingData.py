@@ -8,6 +8,7 @@ import random
 
 # Data Storage
 import json
+import hashlib
 
 # Logging
 from colorama import Fore, Back, Style
@@ -29,6 +30,10 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 	
 	This function will return a dictionary of files and their contents
 	"""
+
+	print(Style.BRIGHT + Fore.MAGENTA + "Reading raw conversation logs")
+
+
 	if Folders == []:
 		raise ValueError("ReadFiles cannot take in an empty list of folders")
 	
@@ -37,16 +42,19 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 		Folders[i] = os.path.join(Config.TRAINING_DATA_PATH, Folders[i])
 
 	if LoadCachedData:
-		print("Attempting to load cached training data to skip processing...")
+		print("\n  Attempting to load cached message data to skip processing...")
 		try:
-			with open(f"{Config.DATASET_CACHE_PATH}/Dataset.json", "r") as File:
+			with open(f"{Config.DATASET_CACHE_PATH}/RawMessages.json", "r") as File:
 				MessageHistories = json.load(File)
-				print(Style.BRIGHT + Fore.MAGENTA + "  Loaded dataset!")
+
+				TotalMessageCount = 0
+				for File in MessageHistories:
+					TotalMessageCount += len(File["Messages"])
+
+				print(Style.BRIGHT + Fore.MAGENTA + f"    Loaded {TotalMessageCount} messages from the cache")
 				return MessageHistories
 		except Exception as e:
-			print(f"  Failed to load dataset, instead building from new, {e}")
-	
-	print(Style.BRIGHT + Fore.MAGENTA + "Parsing training data")
+			print(f"    Failed to load messages, instead building from new, {e}")
 	
 	for i in range(len(Folders)):
 		Folders[i] = os.path.join(Config.TRAINING_DATA_PATH, Folders[i])
@@ -60,7 +68,7 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 					TotalFileCount += 1
 
 	FileCount = 0
-	print("  Extracting contents of folders:")
+	print("\n  Extracting contents of folders:")
 	ProgressBar = tqdm(total = TotalFileCount, desc="  ", unit = " folders", colour= "#b5a3c2")
 
 	# Open all training files
@@ -84,7 +92,7 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 	for Content, Path in TrainingData:
 		TotalMessageCount += Content.count("<BOT_MsgHeadStart>")
 
-	print("  Parsing messages from files")
+	print("\n  Parsing messages from files")
 	ProgressBar = tqdm(total = TotalMessageCount, desc="  ", unit = " messages", colour = "#b5a3c2")
 
 	"""Read message histories"""
@@ -160,18 +168,17 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 		raise ValueError("MessageHistories is an empty list, perhaps the filepaths used are incorrect?")
 
 
-	print("  Saving database")
+	print("\n  Saving messages...")
 	try:
-		with open(f"{Config.DATASET_CACHE_PATH}/Dataset.json", "w+") as File:
+		with open(f"{Config.DATASET_CACHE_PATH}/RawMessages.json", "w+") as File:
 			json.dump(MessageHistories, File, indent=4)
 	except Exception as e:
-		print(f"    Failed to save database, {e}")
+		print(f"    Failed to save messages, {e}")
+	print("  Saved all messages")
 
 		
-	print(Style.BRIGHT + Fore.MAGENTA + f"Extracted {TotalMessageCount} messages from {FileCount} files")
+	print(Style.BRIGHT + Fore.MAGENTA + f"\nExtracted {TotalMessageCount} messages from {FileCount} files")
 	return MessageHistories
-
-
 
 
 
@@ -201,7 +208,22 @@ def GetHistoryProbability(i, MessageHistoryLength, MAX_LENGTH_BIAS):
 
     return Weight / TotalWeight
 
-def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedData: bool = True):
+def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCachedData: bool = True):
+	print(Style.BRIGHT + Fore.MAGENTA + f"Creating training data for stage '{TrainingConfig.NAME}'")
+
+
+	if LoadCachedData:
+		print("\n  Attempting to load cached samples to skip processing...")
+		try:
+			with open(f"{Config.DATASET_CACHE_PATH}/TrainingSamples.json", "r") as File:
+				TrainingData = json.load(File)
+				print(Style.BRIGHT + Fore.MAGENTA + f"    Loaded {len(TrainingData)} samples from the cache")
+				return TrainingData
+		except Exception as e:
+			print(f"    Failed to load samples, instead building from new, {e}")
+
+
+
 	
 	AllUserMessages = []
 	MyMessages = []
@@ -210,16 +232,20 @@ def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedDat
 
 	TotalMessageCount = 0
 	for File in Messages:
-		TotalMessageCount += len(File["Messages"])
+		TotalMessageCount += max(len(File["Messages"])-1, 1)
+	
+	print("\n  Constructing conversations")
 	ProgressBar = tqdm(total = TotalMessageCount, desc="  ", unit = " messages", colour = "#b5a3c2")
 	
 	for File in Messages:
 		Filepath = File["FilePath"]
 		FileMessageCount = len(File["Messages"])
-		for Index in range(max(FileMessageCount - TrainingConfig.MESSAGE_HISTORY_LENGTH - 1, 1)):
+		for Index in range(max(FileMessageCount - 1, 1)):
 			ProgressBar.update(1)
 
-			ConversationHistory = File["Messages"][Index:Index + TrainingConfig.MESSAGE_HISTORY_LENGTH + 1].copy()
+			Start = max(0, Index - TrainingConfig.MESSAGE_HISTORY_LENGTH + 1)
+
+			ConversationHistory = File["Messages"][Start:Index + 2].copy()
 			MessageToPredict = ConversationHistory[-1].copy()
 			ConversationHistory = ConversationHistory[:-1]
 
@@ -261,30 +287,129 @@ def ParseTrainingData(Messages: dict, TrainingConfig: StageConfig, LoadCachedDat
 			# Add a message history of each length to ProcessedMessageHistories
 			ProcessedMessageHistories = []
 			for i in range(len(ProcessedMessageHistory)):
-				if random.random() < GetHistoryProbability(i, len(ProcessedMessageHistories), TrainingConfig.MAX_LENGTH_BIAS):
+				if random.random() < GetHistoryProbability(i, len(ProcessedMessageHistory), TrainingConfig.MAX_LENGTH_BIAS) * TrainingConfig.TARGET_SAMPLES_PER_MESSAGE:
 					ProcessedMessageHistories.append(ProcessedMessageHistory[-(i+1):].copy())
 			
-			# Classify then add the message histories to the correct type
-			if "FineTuning" in Filepath:
-				FineTuningMessages.append("")
-			elif PredictSenderUsername == "rat_5272":
-				MyMessages.append("")
-			elif PredictSenderUsername != "rat_5272":
-				AllUserMessages.append("")
-				
 
-	print(len(FineTuningMessages))
-	print(len(AllUserMessages))
-	print(len(MyMessages))
+			# Classify then add the message histories to the correct type
+			AssistantMessage = {
+				"role": "assistant",
+				"content": MessageToPredict["Message"]
+			}
+
+			for History in ProcessedMessageHistories:
+				Sample = {
+					"Source": "FineTuning" if "FineTuning" in Filepath else
+							  "MyMessages" if PredictSenderUsername == "rat_5272" else
+							  "AllUserMessages",
+					
+					"Messages": History + [AssistantMessage]
+				}
+
+				if "FineTuning" in Filepath:
+					FineTuningMessages.append(Sample)
+				elif PredictSenderUsername == "rat_5272":
+					MyMessages.append(Sample)
+				elif PredictSenderUsername != "rat_5272":
+					AllUserMessages.append(Sample)
+
+	ProgressBar.close()
 
 	TrainingData = []
 
+	print("\n  Creating final dataset (Absolute and Relative size)")
+
 	# Absolute size
+	ProgressBar = tqdm(total = len(FineTuningMessages) + len(MyMessages) + len(AllUserMessages), desc="  ", unit = " samples", colour = "#b5a3c2")
 	for MessageHistory in FineTuningMessages:
-		if random.random() < TrainingConfig.DATASET_SCALE and random.random < TrainingConfig.ABSOLUTE_DATASET_CONTENTS["FineTuning"]:
+		ProgressBar.update(1)
+		if (random.random() < TrainingConfig.DATASET_SCALE and random.random() < TrainingConfig.ABSOLUTE_DATASET_CONTENTS["FineTuning"]) or TrainingConfig.FULL_FINE_TUNING_DATASET:
 			TrainingData.append(MessageHistory)
 	
+	for MessageHistory in MyMessages:
+		ProgressBar.update(1)
+		if random.random() < TrainingConfig.DATASET_SCALE and random.random() < TrainingConfig.ABSOLUTE_DATASET_CONTENTS["MyMessages"]:
+			TrainingData.append(MessageHistory)
+	
+	for MessageHistory in AllUserMessages:
+		ProgressBar.update(1)
+		if random.random() < TrainingConfig.DATASET_SCALE and random.random() < TrainingConfig.ABSOLUTE_DATASET_CONTENTS["AllUserMessages"]:
+			TrainingData.append(MessageHistory)
 	ProgressBar.close()
+
+	# Relative size
+	RelativeSets = {
+		"AllUserMessages": AllUserMessages,
+		"MyMessages": MyMessages,
+		"FineTuning": FineTuningMessages
+	}
+
+	NonZero = []
+
+	for Name, Weight in TrainingConfig.RELATIVE_DATASET_CONTENTS.items():
+		if Weight > 0:
+			NonZero.append(len(RelativeSets[Name]) / Weight)
+	
+	try:
+		BaseSize = min(NonZero)
+	except:
+		BaseSize = 0
+
+	ProgressBar = tqdm(total = 3, desc="  ", unit = " datasets", colour = "#b5a3c2")
+	for Name, Weight in TrainingConfig.RELATIVE_DATASET_CONTENTS.items():
+		ProgressBar.update(1)
+		if Weight <= 0: continue
+
+		TargetSize = int(BaseSize * Weight * TrainingConfig.DATASET_SCALE)
+
+		Dataset = RelativeSets[Name]
+
+		if len(Dataset) <= TargetSize:
+			TrainingData.extend(Dataset)
+		else:
+			TrainingData.extend(random.sample(Dataset, TargetSize))
+	ProgressBar.close()
+
+
+	print("\n  Deduplicating samples")
+	def MakeKey(Messages):
+		return hashlib.sha1(
+			json.dumps(Messages, sort_keys=True, ensure_ascii=False).encode("utf-8")
+		).hexdigest()
+	
+	
+	Seen = set()
+	DeduplicatedTrainingData = []
+
+	for Sample in TrainingData:
+		Source = Sample["Source"]
+		Messages = Sample["Messages"]
+
+		if Source == "FineTuning" and TrainingConfig.FULL_FINE_TUNING_DATASET:
+			DeduplicatedTrainingData.append(Messages)
+			continue
+
+		Key = MakeKey(Messages)
+
+		if Key not in Seen:
+			Seen.add(Key)
+			DeduplicatedTrainingData.append(Messages)
+
+	TrainingData = DeduplicatedTrainingData
+
+	print("\n  Saving samples...")
+	try:
+		with open(f"{Config.DATASET_CACHE_PATH}/TrainingSamples.json", "w+") as File:
+			json.dump(TrainingData, File, indent=4)
+	except Exception as e:
+		print(f"    Failed to save samples, {e}")
+	print("  Saved all samples")
+
+	print(Style.BRIGHT + Fore.MAGENTA + f"\nCreated {len(TrainingData)} training samples")
+
+	return TrainingData
+	
+	
 
 # MUST MUST MUS MUST ALSO ADD IT TO DO THIS:
 # DELETE PREVIOUS TOOL INSTANCES BEFORE FINAL MESSAGE YK YK

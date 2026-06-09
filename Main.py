@@ -3,9 +3,9 @@ def Main():
 	import Config
 
 	MessageData = TrainingData.ReadFiles()
-	Stage1Messages = TrainingData.ParseTrainingData(MessageData, Config.Stage1)
+	print("\n\n\n")
+	Stage1Messages = TrainingData.CreateTrainingSamples(MessageData, Config.Stage1)
 
-	print(Stage1Messages)
 
 	
 
