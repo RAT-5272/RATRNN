@@ -13,10 +13,10 @@ class Config:
 	Global or general configuration settings
 	"""
 	# Base model
-	BASE_MODEL: str = "unsloth/Qwen2.5-7B-Instruct"
+	BASE_MODEL: str = "Qwen/Qwen3-4B-Instruct-2507"
 
 	# Save paths
-	MODEL_SAVE_PATH: str = os.path.expanduser("~/RATRNN/ModelSave") # ~/RATRNN/ModelSave, to enable fast loading
+	MODEL_SAVE_PATH: str = os.path.expanduser("~/RATRNN/Model") # ~/RATRNN/Model, to enable fast loading
 	CHECKPOINT_SAVE_PATH: str = "/mnt/f/Coding/AI/RATRNN_Checkpoints" # /mnt/f/Coding/AI/RATRNN_Checkpoints, so it doesn't flood my L (Linux) partition, it's only 100 GB
 	TRAINING_DATA_PATH: str = os.path.expanduser("~/RATRNN/TrainingData") # ~/RATRNN/TrainingData
 	DATASET_CACHE_PATH: str = os.path.expanduser("~/RATRNN/TrainingData/Cache") # ~/RATRNN/TrainingData
@@ -37,14 +37,14 @@ class TrainingConfig:
 	LABEL_SMOOTHING: float = 0.03
 
 	# LoRA config
-	LORA_R: int = 32
-	LORA_ALPHA: int = 64
-	LORA_DROPOUT: float = 0.05
+	LORA_R: int = 16
+	LORA_ALPHA: int = 32
+	LORA_DROPOUT: float = 0.0
 
-	LORA_TARGET_MODULES: list[str] = field(default_factory=lambda: [
+	LORA_TARGET_MODULES: tuple[str, ...] = (
 		"q_proj", "k_proj", "v_proj", "o_proj",
 		"gate_proj", "up_proj", "down_proj"
-	])
+	)
 
 	# Precision
 	USE_BF16: bool = True
@@ -52,18 +52,20 @@ class TrainingConfig:
 	# Training
 	BATCH_SIZE: int = 1
 	GRAD_ACCUM: int = 12
-	LR: float = 2e-4
-	EPOCHS: int = 1
 
 	# Multi-stage training
-	TRAINING_STAGES: list[str] = field(default_factory=lambda: [""
+	TRAINING_STAGES: tuple[str, ...] = (
 		"Stage1"
-	])
+	)
 
 @dataclass(frozen=True)
 class InferenceConfig:
 	MAX_SEQ_LENGTH: int = 4096
 	MAX_OUTPUT_TOKENS: int = 256
+	MAX_MESSAGE_HISTORY: int = 20
+
+	LOAD_IN_4BIT: bool = False # QLoRA bit mode (4 / 8)
+	LOAD_IN_8BIT: bool = False
 
 
 
@@ -115,6 +117,9 @@ class StageConfig:
 		"assistant": 1
 	})
 	TOKEN_DECAY_RATE: float = 0 # 0-1, 0 for all tokens to keep their original weight, 1 will decay token values based off of recency
+
+	LR: float = 2e-4
+	EPOCHS: int = 1
 	
 
 
@@ -141,13 +146,13 @@ class StageConfig:
 # TRAINING STAGES
 # TRAINING STAGES
 Stage1 = StageConfig(
-	NAME = "Stage 1",
+	NAME = "'Pre'training",
 
-	MESSAGE_HISTORY_LENGTH = 10,
+	MESSAGE_HISTORY_LENGTH = 20,
 	MAX_LENGTH_BIAS = 0.2,
-	TARGET_SAMPLES_PER_MESSAGE = 5,
+	TARGET_SAMPLES_PER_MESSAGE = 2,
 
-	DATASET_SCALE = 1,
+	DATASET_SCALE = 0.05,
 
 	ABSOLUTE_DATASET_CONTENTS = {
 		"AllUserMessages": 1,
@@ -167,24 +172,29 @@ Stage1 = StageConfig(
 		"user": 0.4,
 		"assistant": 1
 	},
-	TOKEN_DECAY_RATE = 0
+	TOKEN_DECAY_RATE = 0,
+
+	LR= 2e-4,
+	EPOCHS = 1
 )
 
 Stage2 = StageConfig(
-	MESSAGE_HISTORY_LENGTH = 15,
+	NAME = "Me Only",
+
+	MESSAGE_HISTORY_LENGTH = 25,
 	MAX_LENGTH_BIAS = 0.7,
-	TARGET_SAMPLES_PER_MESSAGE = 8,
+	TARGET_SAMPLES_PER_MESSAGE = 3,
 
 	DATASET_SCALE = 1,
 
 	ABSOLUTE_DATASET_CONTENTS = {
-		"AllUserMessages": 0,
-		"MyMessages": 0,
+		"AllUserMessages": 0.02,
+		"MyMessages": 1,
 		"FineTuning": 1
 	},
 	RELATIVE_DATASET_CONTENTS = {
-		"AllUserMessages": 0.1,
-		"MyMessages": 0.9,
+		"AllUserMessages": 0,
+		"MyMessages": 0,
 		"FineTuning": 0
 	},
 
@@ -192,8 +202,44 @@ Stage2 = StageConfig(
 
 	TRAINING_MODE = "FullConversation",
 	BASE_TOKEN_WEIGHTS = {"system": 0, "tool": 0, # By role
-		"user": 0.4,
+		"user": 0.0,
 		"assistant": 1
 	},
-	TOKEN_DECAY_RATE = 0
+	TOKEN_DECAY_RATE = 0,
+
+	LR= 1e-4,
+	EPOCHS = 1
+)
+
+Stage3 = StageConfig(
+	NAME = "Finetuning",
+
+	MESSAGE_HISTORY_LENGTH = 25,
+	MAX_LENGTH_BIAS = 0.7,
+	TARGET_SAMPLES_PER_MESSAGE = 10,
+
+	DATASET_SCALE = 1,
+
+	ABSOLUTE_DATASET_CONTENTS = {
+		"AllUserMessages": 0,
+		"MyMessages": 0.01,
+		"FineTuning": 1
+	},
+	RELATIVE_DATASET_CONTENTS = {
+		"AllUserMessages": 0,
+		"MyMessages": 0,
+		"FineTuning": 0
+	},
+
+	FULL_FINE_TUNING_DATASET = True,
+
+	TRAINING_MODE = "AssistantOnly",
+	BASE_TOKEN_WEIGHTS = {"system": 0, "tool": 0, # By role
+		"user": 0.0,
+		"assistant": 1
+	},
+	TOKEN_DECAY_RATE = 0,
+
+	LR= 1e-4,
+	EPOCHS = 1
 )

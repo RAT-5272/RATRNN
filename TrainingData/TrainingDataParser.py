@@ -17,13 +17,6 @@ InitColorama(autoreset=True)
 from tqdm import tqdm
 
 
-
-#print(Style.BRIGHT + Fore.MAGENTA + "This text is red")
-#print(Back.GREEN + "This has a green background")
-#print(Style.BRIGHT + "This is bright text")
-
-
-
 def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"), LoadCachedData: bool = True):
 	"""
 	||| DOES NOT CONSTRUCT A TRAINABLE DATASET |||
@@ -183,39 +176,48 @@ def ReadFiles(Folders: list[str] = [""], ValidExtensions: tuple[str] = (".txt"),
 
 
 def GetHistoryProbability(i, MessageHistoryLength, MAX_LENGTH_BIAS):
-    if MessageHistoryLength <= 1:
-        return 1.0
+	"""
+	||| HELPER FUNCTION |||
+		
+	This returns the probability that a training sample is deleted or not based off of it's size
 
-    # Uniform case
-    if MAX_LENGTH_BIAS <= 0:
-        return 1.0 / MessageHistoryLength
+	- MAX_LENGTH_BIAS = 1, so only message histories with a length of MESSAGE_HISTORY_LENGTH are used
+	- MAX_LENGTH_BIAS = 0.5, the chance is different for each value, is a blend between 1 and 0, using a math formula
+	- MAX_LENGTH_BIAS = 0, so all message histories have an equal chance to be used (1/MESSAGE_HISTORY_LENGTH to preserve scale)
+	"""
 
-    # Fully biased case
-    if MAX_LENGTH_BIAS >= 1:
-        return 1.0 if i == MessageHistoryLength - 1 else 0.0
+	if MessageHistoryLength <= 1:
+		return 1.0
 
-    # Convert bias into an exponent
-    Exponent = MAX_LENGTH_BIAS / (1 - MAX_LENGTH_BIAS)
+	if MAX_LENGTH_BIAS <= 0:
+		return 1.0 / MessageHistoryLength
+	if MAX_LENGTH_BIAS >= 1:
+		return 1.0 if i == MessageHistoryLength - 1 else 0.0
 
-    # Weight for this history length
-    Weight = ((i + 1) / MessageHistoryLength) ** Exponent
+	Exponent = MAX_LENGTH_BIAS / (1 - MAX_LENGTH_BIAS)
 
-    # Normalize
-    TotalWeight = sum(
-        ((j + 1) / MessageHistoryLength) ** Exponent
-        for j in range(MessageHistoryLength)
-    )
+	Weight = ((i + 1) / MessageHistoryLength) ** Exponent
 
-    return Weight / TotalWeight
+	# Normalize
+	TotalWeight = sum(
+		((j + 1) / MessageHistoryLength) ** Exponent
+		for j in range(MessageHistoryLength)
+	)
 
-def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCachedData: bool = True):
+	return Weight / TotalWeight
+
+def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCachedData: bool = True, BotUsername: str = "rat_5272"):
+	"""
+	This will create all of the UNTOKENIZED training samples for a training stage based off of the stage's settings.
+	"""
+	
 	print(Style.BRIGHT + Fore.MAGENTA + f"Creating training data for stage '{TrainingConfig.NAME}'")
 
 
 	if LoadCachedData:
 		print("\n  Attempting to load cached samples to skip processing...")
 		try:
-			with open(f"{Config.DATASET_CACHE_PATH}/TrainingSamples.json", "r") as File:
+			with open(f"{Config.DATASET_CACHE_PATH}/TrainingSamples-{TrainingConfig.NAME}.json", "r") as File:
 				TrainingData = json.load(File)
 				print(Style.BRIGHT + Fore.MAGENTA + f"    Loaded {len(TrainingData)} samples from the cache")
 				return TrainingData
@@ -228,7 +230,6 @@ def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCache
 	AllUserMessages = []
 	MyMessages = []
 	FineTuningMessages = []
-
 
 	TotalMessageCount = 0
 	for File in Messages:
@@ -245,8 +246,8 @@ def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCache
 
 			Start = max(0, Index - TrainingConfig.MESSAGE_HISTORY_LENGTH + 1)
 
-			ConversationHistory = File["Messages"][Start:Index + 2].copy()
-			MessageToPredict = ConversationHistory[-1].copy()
+			ConversationHistory = File["Messages"][Start:Index + 2]
+			MessageToPredict = ConversationHistory[-1]
 			ConversationHistory = ConversationHistory[:-1]
 
 			PredictSenderUsername = MessageToPredict["Username"]
@@ -300,7 +301,7 @@ def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCache
 			for History in ProcessedMessageHistories:
 				Sample = {
 					"Source": "FineTuning" if "FineTuning" in Filepath else
-							  "MyMessages" if PredictSenderUsername == "rat_5272" else
+							  "MyMessages" if PredictSenderUsername == BotUsername else
 							  "AllUserMessages",
 					
 					"Messages": History + [AssistantMessage]
@@ -308,9 +309,9 @@ def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCache
 
 				if "FineTuning" in Filepath:
 					FineTuningMessages.append(Sample)
-				elif PredictSenderUsername == "rat_5272":
+				elif PredictSenderUsername == BotUsername:
 					MyMessages.append(Sample)
-				elif PredictSenderUsername != "rat_5272":
+				elif PredictSenderUsername != BotUsername:
 					AllUserMessages.append(Sample)
 
 	ProgressBar.close()
@@ -399,7 +400,7 @@ def CreateTrainingSamples(Messages: dict, TrainingConfig: StageConfig, LoadCache
 
 	print("\n  Saving samples...")
 	try:
-		with open(f"{Config.DATASET_CACHE_PATH}/TrainingSamples.json", "w+") as File:
+		with open(f"{Config.DATASET_CACHE_PATH}/TrainingSamples-{TrainingConfig.NAME}.json", "w+") as File:
 			json.dump(TrainingData, File, indent=4)
 	except Exception as e:
 		print(f"    Failed to save samples, {e}")
