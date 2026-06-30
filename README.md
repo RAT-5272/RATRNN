@@ -19,8 +19,8 @@ Built with tool use, single, multi-user, and multi-conversation local inference 
 
 <p align="center">
 Documentation:&emsp;
-  <a href="#installation">Installation</a> •
-  <a href="#quick-start">Quick Start</a> •
+  <a href="Docs/Installation.md">Installation</a> •
+  <a href="Docs/Quick Start.md">Quick Start</a> •
   <a href="Docs/Roadmap.md">Roadmap</a>
 </p>
 
@@ -46,8 +46,20 @@ It includes everything required to:
   <li>Supports rich tool use and agentic loops</li>
 </ul>
 
+<h3> Dataset Creation </h3>
+WRITE STUFF HERE
 
+SCREENSHOT / GIF OF DATASET CREATION AND CONFIG HERE
 
+<h3> Training Pipeline </h3>
+WRITE STUFF HERE
+
+SCREENSHOT OF TRAINING HERE
+
+<h3> Inference Loop </h3>
+WRITE STUFF HERE
+
+SCREENSHOT / GIF OF CHAT AND TOOL USE AND DISCORD BOT HERE
 
 <h2 align="center">Navigation</h2>
 
@@ -59,6 +71,7 @@ It includes everything required to:
 This software is provided <strong>"as is"</strong> with no warranties. Users assume all responsibility for their use of the software and any consequences from it.
 </p>
 
+<p>
 <strong>Model Information: </strong>RAT RNN does not intentionally include models or datasets designed to produce dangerous, illegal, or misleading content. However, language models may still generate undesireable or incorrect outputs, including in response to tactics such as prompt injection or jailbreak attempts. Users should <strong>not</strong> rely on the model for safety critical, legal, medical, or financial decisions.
 </p>
 
