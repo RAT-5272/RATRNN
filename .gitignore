@@ -6,8 +6,6 @@ Model
 
 Venv
 
-RAT RNN OLD
-
 __pycache__
 unsloth_compiled_cache
 .vscode
@@ -22,3 +20,6 @@ TEST2.py
 TEST2OUTPUTS
 
 ChatOld.py
+
+TEST3.txt
+Nothing.py

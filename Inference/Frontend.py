@@ -27,6 +27,13 @@ class GenerationQueueItem():
 		Self.EntryTime: float = time.time()
 
 class InferenceManager():
+	"""
+	
+	CreateConversation
+	
+	QueueRequest"""
+
+
 	def __init__(Self, Config: Configuration.Config, InferenceConfig: Configuration.InferenceConfig):
 		Self.Config: Configuration.Config = Config
 		Self.InferenceConfig: Configuration.InferenceConfig = InferenceConfig
@@ -49,7 +56,7 @@ class InferenceManager():
 			load_in_4bit=Self.InferenceConfig.LOAD_IN_4BIT,
 			load_in_8bit=Self.InferenceConfig.LOAD_IN_8BIT,
 
-			attn_implementation="flash_attention_2",
+			#attn_implementation="flash_attention_2", TURN ON FLASH ATTENTION WHEN I INSTALL IT pijgwrpi hrgjwIWRGH )ORGWH WOUGHRGW OhwrgO{ HWRG)IO hwrgiop'hj grwop'ihwrg iphrgW pihgRW iphwrg iopwrghwruiogWRGUIOWRGO HWROGHwrgOUHwrgo}
 		)
 
 		print(torch.cuda.get_device_name())
@@ -76,7 +83,7 @@ class InferenceManager():
 		return ConversationID
 	
 	def QueueRequest(Self):
-		"""Adds a generation request to the priority queue, returns the generated output from the AI"""
+		"""Adds a generation request to the priority queue, returns the generated output from the AI as a text streamer"""
 
 		
 		pass

@@ -18,7 +18,7 @@ def TrainingLoop():
 	for StageConfig in TRAINING_STAGES:
 
 		# Format all the messages into conversations (samples)
-		Samples = TrainingDataParser.CreateTrainingSamples(MessageData, StageConfig, BotUsername = "binguslord8060")
+		Samples = TrainingDataParser.CreateTrainingSamples(MessageData, StageConfig, BotUsername = "binguslord8060", )
 
 		# Tokenize all samples, force system prompt to top, apply custom token weights, etc..
 		Dataset = BuildDataset(Samples, Tokenizer)
@@ -30,9 +30,14 @@ def TrainingLoop():
 		del Dataset
 
 def InferenceLoop():
-	from ChatOld import ChatLoop
+	from Inference.Frontend import InferenceManager
+	import Config
+	
+	ChatLoop = InferenceManager(Config.Config, Config.InferenceConfig)
 
-	ChatLoop()
+	ConversationID = ChatLoop.CreateConversation()
+
+
 
 
 
